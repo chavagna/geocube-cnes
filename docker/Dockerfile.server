@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=$(CONTAINER_REGISTRY)/geocube-base:latest
+ARG BASE_IMAGE=base-image:latest
 FROM $BASE_IMAGE AS builder
 
 WORKDIR /build
@@ -12,10 +12,13 @@ COPY cmd/server server
 
 RUN cd server && go build -ldflags="-s -w" .
 
-FROM alpine:3
+FROM artifactory.cnes.fr/docker/alpine:3
 ENTRYPOINT ["/server"]
 COPY --from=builder /usr/local/lib /usr/local/lib
 COPY --from=builder /usr/local/share /usr/local/share
+
+RUN sed -i -e 's/https/http/' /etc/apk/repositories #Without this command, apk doesn't detect the proxy
+
 RUN apk add \
         ca-certificates \
         libcurl \

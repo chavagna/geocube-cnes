@@ -1,4 +1,6 @@
-FROM golang:alpine
+FROM artifactory.cnes.fr/docker/golang:alpine
+
+RUN sed -i -e 's/https/http/' /etc/apk/repositories #Without this command, apk doesn't detect the proxy
 
 RUN apk update && \
     apk add \
@@ -20,24 +22,24 @@ WORKDIR /build
 
 ARG PROJVERSION=7.1.0
 RUN mkdir proj && cd proj &&\
-    curl -sL https://github.com/OSGeo/proj.4/releases/download/$PROJVERSION/proj-$PROJVERSION.tar.gz -o proj-$PROJVERSION.tar.gz &&\
+    curl -sL -k https://github.com/OSGeo/proj.4/releases/download/$PROJVERSION/proj-$PROJVERSION.tar.gz -o proj-$PROJVERSION.tar.gz &&\
 	mkdir proj && \
 	tar  xzf proj-$PROJVERSION.tar.gz -C proj --strip-components 1 &&\
     cd proj && \
 	#curl -sL http://download.osgeo.org/proj/proj-datumgrid-1.8.zip -o proj-datumgrid-1.8.zip && \
 	#unzip -o proj-datumgrid-1.8.zip -d data/ && \
 	./configure --disable-static CFLAGS="-O2" CXXFLAGS="-O2" &&\
-	make -j8 && \
+	make -j2 && \
 	make install &&\
     cd /build && rm -rf proj
 
 ARG GEOSVERSION=3.8.1
 RUN mkdir geos && cd geos &&\
-    curl -sL http://download.osgeo.org/geos/geos-$GEOSVERSION.tar.bz2 -o geos.tbz2 &&\
+    curl -sL -k http://download.osgeo.org/geos/geos-$GEOSVERSION.tar.bz2 -o geos.tbz2 &&\
     tar xf geos.tbz2 &&\
     cd geos-$GEOSVERSION &&\
     ./configure CFLAGS="-O2" CXXFLAGS="-O2" &&\
-    make -j8 &&\
+    make -j2 &&\
     make install &&\
     cd /build && rm -rf geos
 
@@ -45,7 +47,7 @@ RUN mkdir geos && cd geos &&\
 #ARG GDALVERSION=ceb3e55a35159a705fd1f2712d5ee4c1965b00da
 ARG GDALVERSION=release/3.2
 RUN mkdir gdal && cd gdal &&\
-    curl -sL https://github.com/OSGeo/gdal/archive/$GDALVERSION.tar.gz -o gdal.tar.gz &&\
+    curl -sL -k https://github.com/OSGeo/gdal/archive/$GDALVERSION.tar.gz -o gdal.tar.gz &&\
 	mkdir gdal && \
 	tar  xzf gdal.tar.gz -C gdal --strip-components 1 &&\
     cd gdal/gdal && \
@@ -67,7 +69,7 @@ RUN mkdir gdal && cd gdal &&\
 		--with-webp \
 		--with-zstd \
 		--with-geotiff=internal && \
-	make -j8 && \
+	make -j2 && \
 	make install &&\
 	 (for i in \
             # BAG driver

@@ -1,3 +1,5 @@
-FROM alpine:3.11
+FROM artifactory.cnes.fr/docker/alpine:3.11
+
+RUN sed -i -e 's/https/http/' /etc/apk/repositories #Without this command, apk doesn't detect the proxy
 
 RUN apk add --no-cache pgbouncer

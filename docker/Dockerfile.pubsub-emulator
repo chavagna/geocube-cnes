@@ -1,4 +1,4 @@
-FROM google/cloud-sdk
+FROM artifactory.cnes.fr/docker/google/cloud-sdk
 
 EXPOSE 8085
 

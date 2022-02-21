@@ -1,9 +1,9 @@
-ARG BASE_IMAGE=$(CONTAINER_REGISTRY)/geocube-base:latest
+ARG BASE_IMAGE=base-image:latest
 FROM $BASE_IMAGE AS builder
 
 RUN apk update && apk add curl
 WORKDIR /build/upx
-RUN curl -sL https://github.com/upx/upx/releases/download/v3.95/upx-3.95-amd64_linux.tar.xz -o upx.tar.xz &&\
+RUN curl -sL -k https://github.com/upx/upx/releases/download/v3.95/upx-3.95-amd64_linux.tar.xz -o upx.tar.xz &&\
 		tar xf upx.tar.xz --strip-components 1 && mv upx /usr/local/go/bin/ && \
 	cd /build &&\
 	echo "cleaning build directory: `du -sh upx`" && \
@@ -26,9 +26,10 @@ RUN upx -q /go/bin/consolidater
 
 #---------------------------------------------------------------------------------------------------------------
 
-FROM alpine:3
+FROM artifactory.cnes.fr/docker/alpine:3
 COPY --from=builder /usr/local/lib /usr/local/lib
 COPY --from=builder /usr/local/share /usr/local/share
+RUN sed -i -e 's/https/http/' /etc/apk/repositories #Without this command, apk doesn't detect the proxy
 RUN apk add \
         ca-certificates \
         libcurl \

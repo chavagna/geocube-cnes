@@ -1,8 +1,10 @@
-FROM golang:alpine AS builder
+FROM artifactory.cnes.fr/docker/golang:alpine AS builder
+
+RUN sed -i -e 's/https/http/' /etc/apk/repositories #Without this command, apk doesn't detect the proxy
 
 RUN apk add curl
 WORKDIR /build/upx
-RUN curl -sL https://github.com/upx/upx/releases/download/v3.95/upx-3.95-amd64_linux.tar.xz -o upx.tar.xz &&\
+RUN curl -sL -k https://github.com/upx/upx/releases/download/v3.95/upx-3.95-amd64_linux.tar.xz -o upx.tar.xz &&\
 		tar xf upx.tar.xz --strip-components 1 && mv upx /usr/local/go/bin/
 ENV GOFLAGS=-mod=vendor
 
@@ -21,7 +23,7 @@ RUN upx -q /go/bin/autoscaler
 
 #---------------------------------------------------------------------------------------------------------------
 
-FROM alpine:3
+FROM artifactory.cnes.fr/docker/alpine:3
 EXPOSE 8080
 ENTRYPOINT ["/autoscaler"]
 COPY --from=builder /go/bin/autoscaler /
