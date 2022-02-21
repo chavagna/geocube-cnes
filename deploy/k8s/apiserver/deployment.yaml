@@ -17,18 +17,21 @@ spec:
       automountServiceAccountToken: true
       containers:
         - args:
-            - -dbName=geocube
-            - -dbUser={{DB_USER}}
-            - -dbPassword={{DB_PASSWORD}}
-            - -dbHost={{BD_HOST}}
+            - -dbName=db-geocube
+            - -dbUser=postgres
+            - -dbPassword=1234
+            - -dbHost=10.20.0.95:5432
             - -psEventsTopic=events
             - -psConsolidationsTopic=consolidations
-            - -ingestionStorage={{INGESTION_STORAGE}}
+            - -ingestionStorage=/geocube-datasets
             - -maxConnectionAge=3600
             - -workers=1
-            - -cancelledJobs={{CANCELLED_JOBS_STORAGE}}
-          image: {{GEOCUBE_SERVER_IMAGE}}
-          imagePullPolicy: Always
+            - -cancelledJobs=/geocube-cancelled-jobs
+          env:
+            - name: PUBSUB_EMULATOR_HOST
+              value: 0.0.0.0:8085
+          image: geocube-server:latest
+          imagePullPolicy: IfNotPresent
           name: apiserver
           ports:
             - containerPort: 8080

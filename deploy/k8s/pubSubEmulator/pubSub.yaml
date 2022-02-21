@@ -16,8 +16,8 @@ spec:
     spec:
       containers:
         - name: pubsub-emulator
-          image: {{PUBSUB_EMULATOR_IMAGE}}
-          imagePullPolicy: Always
+          image: pubsub-emulator:latest
+          imagePullPolicy: IfNotPresent
           args: ["--host-port=0.0.0.0:8085"]
 ---
 apiVersion: v1

@@ -3,14 +3,9 @@ kind: Role
 metadata:
   name: autoscaler-role
 rules:
-  - verbs:
-      - get
-      - list
-      - delete
-      - create
+  - apiGroups: ['']
+    verbs: ['get', 'list','delete','create']
     resources:
       - pods
-  - verbs:
-      - get
     resources:
       - replicationcontrollers
