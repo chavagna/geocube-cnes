@@ -17,10 +17,8 @@ spec:
       automountServiceAccountToken: true
       containers:
         - args:
-            - -dbName=db-geocube
-            - -dbUser=postgres
-            - -dbPassword=1234
-            - -dbHost=10.20.0.95:5432
+            - -dbConnection=postgresql://postgres:1234@10.20.0.95:5432/db-geocube
+            - -local
             - -psEventsTopic=events
             - -psConsolidationsTopic=consolidations
             - -ingestionStorage=/geocube-datasets

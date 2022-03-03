@@ -143,7 +143,7 @@ func ConnStringFromCredentials(dbName, dbUser, dbHost string, creds Credentials)
 }
 
 func New(ctx context.Context, dbConnection string) (*BackendDB, error) {
-	db, err := sql.Open("postgres", dbConnection)
+	db, err := sql.Open("postgres", dbConnection + "?sslmode=disable")
 	if err != nil {
 		return nil, fmt.Errorf("sql.open: %w", err)
 	}
