@@ -88,8 +88,8 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("missing configuration for eventPublisher")
 	}
 
-	handlerConsolidation := image.NewHandleConsolidation(image.NewCogGenerator(), image.NewMucogGenerator(), consolidaterConfig.CancelledJobsStorage)
-	log.Logger(ctx).Debug("consolidater starts " + logMessaging)
+	handlerConsolidation := image.NewHandleConsolidation(image.NewCogGenerator(), image.NewMucogGenerator(), consolidaterConfig.CancelledJobsStorage, consolidaterConfig.Workers)
+	log.Logger(ctx).Sugar().Debugf("consolidater starts "+logMessaging+" with %d worker(s)", consolidaterConfig.Workers)
 	for {
 		err := taskConsumer.Pull(ctx, func(ctx context.Context, msg *messaging.Message) error {
 			jobStarted = time.Now()
@@ -146,37 +146,27 @@ func run(ctx context.Context) error {
 }
 
 func newConsolidationAppConfig() (*consolidaterConfig, error) {
-	project := flag.String("project", "", "subscription project (gcp pubSub only)")
-	psConsolidationsSubscription := flag.String("psConsolidationsSubscription", "", "pubsub consolidation subscription name")
-	psEventsTopic := flag.String("psEventsTopic", "", "pubsub events topic name")
-	workdir := flag.String("workdir", "", "scratch work directory")
-	cancelledJobs := flag.String("cancelledJobs", "", "storage where cancelled jobs are referenced")
-	retryCount := flag.Int("retryCount", 1, "number of retries when consolidation job failed with a temporary error")
-	gdalFlags := cmd.GDALConfigGetFlags()
+	consolidaterConfig := consolidaterConfig{}
+
+	flag.StringVar(&consolidaterConfig.Project, "psProject", "", "subscription project (gcp pubSub only)")
+	flag.StringVar(&consolidaterConfig.PsConsolidationsSubscription, "psConsolidationsSubscription", "", "pubsub consolidation subscription name")
+	flag.StringVar(&consolidaterConfig.PsEventsTopic, "psEventsTopic", "", "pubsub events topic name")
+	flag.StringVar(&consolidaterConfig.WorkDir, "workdir", "", "scratch work directory")
+	flag.StringVar(&consolidaterConfig.CancelledJobsStorage, "cancelledJobs", "", "storage where cancelled jobs are referenced")
+	flag.IntVar(&consolidaterConfig.RetryCount, "retryCount", 1, "number of retries when consolidation job failed with a temporary error")
+	flag.IntVar(&consolidaterConfig.Workers, "workers", 1, "number of workers for parallel tasks")
+	consolidaterConfig.GDALConfig = cmd.GDALConfigFlags()
 
 	flag.Parse()
 
-	if *workdir == "" {
+	if consolidaterConfig.WorkDir == "" {
 		return nil, fmt.Errorf("missing --workdir config flag")
 	}
-	if *cancelledJobs == "" {
+	if consolidaterConfig.CancelledJobsStorage == "" {
 		return nil, fmt.Errorf("missing --cancelledJobs storage flag")
 	}
 
-	gdalConfig, err := cmd.NewGDALConfig(gdalFlags)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize GDALConfig: %w", err)
-	}
-
-	return &consolidaterConfig{
-		PsConsolidationsSubscription: *psConsolidationsSubscription,
-		WorkDir:                      *workdir,
-		Project:                      *project,
-		PsEventsTopic:                *psEventsTopic,
-		CancelledJobsStorage:         *cancelledJobs,
-		RetryCount:                   *retryCount,
-		GDALConfig:                   gdalConfig,
-	}, nil
+	return &consolidaterConfig, nil
 }
 
 type consolidaterConfig struct {
@@ -186,6 +176,7 @@ type consolidaterConfig struct {
 	PsConsolidationsSubscription string
 	CancelledJobsStorage         string
 	RetryCount                   int
+	Workers                      int
 	GDALConfig                   *cmd.GDALConfig
 }
 

@@ -222,7 +222,7 @@ func (svc *Service) CreatePalette(ctx context.Context, palette *geocube.Palette,
 func (svc *Service) validateRemoteContainer(ctx context.Context, container *geocube.Container) error {
 	containerURI, err := uri.ParseUri(container.URI)
 	if err != nil {
-		return fmt.Errorf("failed to parse container URI : %w", err)
+		return fmt.Errorf("failed to parse container URI [%s]: %w", container.URI, err)
 	}
 
 	storageClass := geocube.StorageClassSTANDARD
@@ -318,10 +318,11 @@ func (svc *Service) validateAndSetRemoteDataset(ctx context.Context, dataset *ge
 // Index datasets that are not fully known. Checks that the container is reachable and get some missing informations.
 func (svc *Service) IndexExternalDatasets(ctx context.Context, newcontainer *geocube.Container, datasets []*geocube.Dataset) error {
 	var err error
+	log.Logger(ctx).Sugar().Debugf("Index external container %s containing %d datasets", newcontainer.URI, len(datasets))
 
 	// Validate container
 	if err = svc.validateRemoteContainer(ctx, newcontainer); err != nil {
-		return err
+		return fmt.Errorf("IndexExternalDatasets.%w", err)
 	}
 
 	// Validate datasets
@@ -336,11 +337,11 @@ func (svc *Service) IndexExternalDatasets(ctx context.Context, newcontainer *geo
 			variables[dataset.InstanceID] = v
 		}
 		if err := dataset.ValidateWithVariable(v); err != nil {
-			return err
+			return fmt.Errorf("IndexExternalDatasets.%w", err)
 		}
 		// Validate using remote dataset
 		if err := svc.validateAndSetRemoteDataset(ctx, dataset); err != nil {
-			return err
+			return fmt.Errorf("IndexExternalDatasets.%w", err)
 		}
 	}
 	return svc.unitOfWork(ctx, func(txn database.GeocubeTxBackend) error {

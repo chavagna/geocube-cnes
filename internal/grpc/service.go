@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -30,7 +31,7 @@ import (
 )
 
 const (
-	GeocubeServerVersion = "0.3.0"
+	GeocubeServerVersion = "0.4.0"
 	StreamTilesBatchSize = 1000
 )
 
@@ -611,7 +612,7 @@ func (svc *Service) ListJobs(ctx context.Context, req *pb.ListJobsRequest) (*pb.
 	// Format response
 	resp := pb.ListJobsResponse{}
 	for _, job := range jobs {
-		pbjob, err := job.ToProtobuf()
+		pbjob, err := job.ToProtobuf(0, 10)
 		if err != nil {
 			return nil, formatError("toprotobuf: %w", err)
 		}
@@ -635,7 +636,7 @@ func (svc *Service) GetJob(ctx context.Context, req *pb.GetJobRequest) (*pb.GetJ
 	}
 
 	// Format response
-	pbjob, err := job.ToProtobuf()
+	pbjob, err := job.ToProtobuf(int(req.LogPage), int(req.LogLimit))
 	if err != nil {
 		return nil, formatError("toprotobuf: %w", err)
 	}
@@ -823,6 +824,8 @@ func (svc *Service) GetCube(req *pb.GetCubeRequest, stream pb.Geocube_GetCubeSer
 		NbDatasets:    int64(info.NbDatasets),
 		ResamplingAlg: pb.Resampling(info.Resampling),
 		RefDformat:    info.RefDataFormat.ToProtobuf(),
+		Geotransform:  req.PixToCrs,
+		Crs:           req.Crs,
 	}}}); err != nil {
 		return formatError("backend.GetCube.%w", err)
 	}
@@ -830,7 +833,7 @@ func (svc *Service) GetCube(req *pb.GetCubeRequest, stream pb.Geocube_GetCubeSer
 	if req.GetHeadersOnly() {
 		log.Logger(ctx).Sugar().Infof("GetCubeHeader : %d images from %d datasets (%v)\n", info.NbImages, info.NbDatasets, time.Since(start))
 	} else {
-		log.Logger(ctx).Sugar().Infof("GetCube : %d images from %d datasets (%v)\n", info.NbImages, info.NbDatasets, time.Since(start))
+		log.Logger(ctx).Sugar().Infof("GetCube (%d, %d): %d images from %d datasets (%v)\n", cubeInfo.width, cubeInfo.height, info.NbImages, info.NbDatasets, time.Since(start))
 	}
 
 	// Start the compression routine
@@ -841,7 +844,7 @@ func (svc *Service) GetCube(req *pb.GetCubeRequest, stream pb.Geocube_GetCubeSer
 	// If context close, compressedSlicesQueue is automatically closed
 	n := 1
 	for slice := range compressedSlicesQueue {
-		header, chunks := getCubeCreateResponses(&slice)
+		header, chunks := getCubeCreateResponses(&slice, true)
 
 		getCubeLog(ctx, slice, header, req.GetHeadersOnly(), n)
 		n++
@@ -901,7 +904,7 @@ func compressSlicesQueue(sliceQueue <-chan internal.CubeSlice, compressedSliceQu
 	}
 }
 
-func getCubeCreateResponses(slice *internal.CubeSlice) (*pb.ImageHeader, []*pb.ImageChunk) {
+func getCubeCreateResponses(slice *internal.CubeSlice, compression bool) (*pb.ImageHeader, []*pb.ImageChunk) {
 	chunkSize := 64 * 1024 // 1Mo/4Mo maximum
 
 	// Create the header
@@ -910,6 +913,7 @@ func getCubeCreateResponses(slice *internal.CubeSlice) (*pb.ImageHeader, []*pb.I
 		DatasetMeta: &pb.DatasetMeta{
 			InternalsMeta: make([]*pb.InternalMeta, len(slice.DatasetsMeta.Datasets)),
 		},
+		Compression: compression,
 	}
 
 	// Append records
@@ -993,18 +997,35 @@ func (svc *Service) GetXYZTile(ctx context.Context, req *pb.GetTileRequest) (*pb
 }
 
 // CreateGrid
-func (svc *Service) CreateGrid(ctx context.Context, req *pb.CreateGridRequest) (*pb.CreateGridResponse, error) {
-	grid, err := geocube.NewGridFromProtobuf(req.Grid)
-	if err != nil {
-		return nil, formatError("", err) // ValidationError
+func (svc *Service) CreateGrid(stream pb.Geocube_CreateGridServer) error {
+	// Receiving grid
+	var grid *geocube.Grid
+	for {
+		resp, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return formatError("backend.CreateGrid", err)
+		}
+		g, err := geocube.NewGridFromProtobuf(resp.Grid)
+		if err != nil {
+			return formatError("", err) // ValidationError
+		}
+		if grid == nil {
+			grid = g
+		} else {
+			grid.Cells = append(grid.Cells, g.Cells...)
+		}
 	}
 
-	if err := svc.gsvc.CreateGrid(ctx, grid); err != nil {
-		return nil, formatError("backend.%w", err)
+	if err := svc.gsvc.CreateGrid(stream.Context(), grid); err != nil {
+		return formatError("backend.%w", err)
 	}
 
 	// Format response
-	return &pb.CreateGridResponse{}, nil
+	stream.SendAndClose(&pb.CreateGridResponse{})
+	return nil
 }
 
 // DeleteGrid

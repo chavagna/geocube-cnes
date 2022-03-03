@@ -53,11 +53,11 @@ message Dataset {
 /**
   * Define a container of datasets.
   * Usually a container is a file containing one dataset.
-  * But after a consolidation or if the container has several bands, it can contains several datasets.
+  * But after a consolidation or if the container has several bands, it can contain several datasets.
   */
 message Container{
     string           uri           = 1; // URI of the file
-    bool             managed       = 2; // True if the Geocube is responsible of the lifecycle of this file
+    bool             managed       = 2; // True if the Geocube is responsible for the lifecycle of this file
     repeated Dataset datasets      = 3; // List of datasets of the container
 }
 
@@ -74,7 +74,7 @@ message Job {
     string                    state            = 4;  // Current state of the state machine
     google.protobuf.Timestamp creation_time    = 5;  // Time of creation of the job
     google.protobuf.Timestamp last_update_time = 6;  // Time of the last update
-    repeated string           logs             = 7;  // Job logs 
+    repeated string           logs             = 7;  // Job logs: if logs are too big to fit in a grpc response, logs will only be a subset (by default, the latest)
     int32                     active_tasks     = 8;  // If the job is divided into sub tasks, number of pending tasks
     int32                     failed_tasks     = 9;  // If the job is divided into sub tasks, number of failed tasks
     ExecutionLevel            execution_level  = 10; // Execution level of a job (see ExecutionLevel)
@@ -110,8 +110,8 @@ message ConsolidationParams{
     double       exponent           = 2; // 1: linear scaling (RealMax - RealMin) * pow( (Value - Min) / (Max - Min), Exponent) + RealMin
 //    bool         create_overviews   = 3; // DEPRECATED
     Resampling   resampling_alg     = 4; // Define how to resample the data during the consolidation (if a reprojection is needed or if the overviews are created)
-    Compression  compression        = 5; // Define whether the date is compressed at block level
-    bool         bands_interleave   = 6; // In case of multibands, define whether or not the bands are interleaved
+    Compression  compression        = 5; // Define how the data is compressed at block level
+    bool         bands_interleave   = 6; // If the variable is multibands, define whether the bands are interleaved
     StorageClass storage_class      = 7; // Define the storage class of the created file (support only GCS)
     int32        overviews_min_size = 8; // Maximum width or height of the smallest overview level. 0: No overview, -1: default=256.
 }
@@ -188,7 +188,9 @@ message ListJobsResponse {
   * Retrieve a job given its id
   */
 message GetJobRequest{
-    string id = 1;
+    string id        = 1;
+    int32  log_page  = 2;
+    int32  log_limit = 3;
 }
 
 /**
