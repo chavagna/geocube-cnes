@@ -65,7 +65,7 @@ func main() {
 		MinInstances: int64(*argmin),
 		MaxStep:      int64(*argstep),
 	}
-	as := autoscaler.New(queue, controller, cfg, log.Logger(ctx))
+        as := autoscaler.New(qbas.QueueRandom{Max : 10}, controller, cfg, log.Logger(ctx))
 	log.Logger(ctx).Sugar().Infof("starting autoscaler with refresh %s", argupd.String())
 	as.Run(ctx, *argupd)
 }

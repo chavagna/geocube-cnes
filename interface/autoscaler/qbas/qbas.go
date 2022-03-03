@@ -4,7 +4,17 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"math/rand"
 )
+
+type QueueRandom struct{
+       Max int
+}
+
+func (q QueueRandom) Backlog(ctx context.Context) (int64, error){
+          return int64(rand.Intn(q.Max+1)), nil
+}
+
 
 type Queue interface {
 	Backlog(ctx context.Context) (int64, error)
