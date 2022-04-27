@@ -8,25 +8,31 @@ require (
 	cloud.google.com/go/pubsub v1.6.1
 	cloud.google.com/go/secretmanager v1.0.0
 	cloud.google.com/go/storage v1.18.2
-	github.com/airbusgeo/cogger v0.0.5
-	github.com/airbusgeo/godal v0.0.6-0.20211104110613-d49205b11c58
+	github.com/airbusgeo/cogger v0.0.7
+	github.com/airbusgeo/godal v0.0.6
 	github.com/airbusgeo/mucog v0.0.0-20210928135728-43d5e17d5a2a
 	github.com/airbusgeo/osio v0.1.2
 	github.com/aws/aws-sdk-go-v2 v1.7.0
 	github.com/aws/aws-sdk-go-v2/config v1.4.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.11.0
+	github.com/btubbs/pgq v0.0.0-20190101193147-0a3335913e86
 	github.com/golang/glog v0.0.0-20210429001901-424d2337a529 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2
+	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/tiff v0.0.0-20161109161721-4b31f3041d9a
 	github.com/google/uuid v1.1.2
 	github.com/googleapis/gnostic v0.2.0 // indirect
 	github.com/gregjones/httpcache v0.0.0-20181110185634-c63ab54fda8f // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.4.0
-	github.com/lib/pq v1.8.0
+	github.com/guregu/null v4.0.0+incompatible // indirect
+	github.com/jmoiron/sqlx v1.3.4 // indirect
+	github.com/joomcode/errorx v1.1.0 // indirect
+	github.com/lib/pq v1.10.4
 	github.com/onsi/ginkgo v1.12.0
 	github.com/onsi/gomega v1.9.0
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
+	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.0
 	github.com/twpayne/go-geom v1.4.0
 	go.uber.org/zap v1.17.0

@@ -8,6 +8,7 @@ import (
 	"github.com/airbusgeo/geocube/interface/autoscaler"
 	rc "github.com/airbusgeo/geocube/interface/autoscaler/k8s"
 	"github.com/airbusgeo/geocube/interface/autoscaler/qbas"
+	"github.com/airbusgeo/geocube/interface/messaging/pgqueue"
 	"github.com/airbusgeo/geocube/interface/messaging/pubsub"
 	"github.com/airbusgeo/geocube/internal/log"
 	"go.uber.org/zap"
@@ -18,10 +19,11 @@ func main() {
 
 	var (
 		argupd      = flag.Duration("update", 30*time.Second, "time between updates")
-		argproject  = flag.String("psProject", "", "pubsub subscription project")
-		argsub      = flag.String("psSubscription", "", "pubsub subscription to configure the backlog for autoscaling (needs --psProject)")
+		argproject  = flag.String("ps-project", "", "pubsub subscription project")
+		argpgqconn  = flag.String("pgq-connection", "", "pgqueue database connection")
+		argsub      = flag.String("queue", "", "pgqueue or pubsub subscription to configure the backlog for autoscaling (needs --ps-project or pgq-connection)")
 		argrc       = flag.String("rc", "", "K8S replication controller")
-		argns       = flag.String("ns", "default", "replication controller namespace")
+		argns       = flag.String("ns", "default", "K8S replication controller namespace")
 		argratio    = flag.Float64("ratio", 10.0, "job/worker ratio over which instances will be added")
 		argminratio = flag.Float64("minratio", 0.0, "job/worker under which instances will be deleted")
 		argstep     = flag.Uint("step", 3, "max worker increment/decrement")
@@ -49,14 +51,22 @@ func main() {
 	controller.CostPort = int(*podCostPort)
 
 	var queue qbas.Queue
-
-	if *argsub != "" {
+	var logMessage string
+	if *argpgqconn != "" {
+		db, _, err := pgqueue.SqlConnect(ctx, *argpgqconn)
+		if err != nil {
+			panic(err)
+		}
+		queue = pgqueue.NewConsumer(db, *argsub)
+		logMessage += " from pgqueue:" + *argsub
+	} else if *argproject != "" {
 		if queue, err = pubsub.NewConsumer(*argproject, *argsub); err != nil {
 			panic(err)
 		}
+		logMessage += " from pubsub:" + *argsub
 	}
 	if queue == nil {
-		panic("missing backlog configuration (e.g. psSubscription)")
+		panic("missing backlog configuration (e.g. queue, ps-project or pgq-connection)")
 	}
 	cfg := qbas.Config{
 		Ratio:        *argratio,
@@ -65,7 +75,9 @@ func main() {
 		MinInstances: int64(*argmin),
 		MaxStep:      int64(*argstep),
 	}
-        as := autoscaler.New(qbas.QueueRandom{Max : 10}, controller, cfg, log.Logger(ctx))
-	log.Logger(ctx).Sugar().Infof("starting autoscaler with refresh %s", argupd.String())
+<<<<<<< HEAD
+        as := autoscaler.New(qbas.QueueRandom{Max : 10}, controller, cfg, log.Logger(ctx)) 
+//	as := autoscaler.New(queue, controller, cfg, log.Logger(ctx))
+	log.Logger(ctx).Sugar().Infof("starting autoscaler with refresh %s "+logMessage, argupd.String())
 	as.Run(ctx, *argupd)
 }

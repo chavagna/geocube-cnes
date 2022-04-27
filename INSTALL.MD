@@ -3,9 +3,6 @@
 ## Table of Contents
 
 
-- [Geocube Installation Guide](#geocube-installation-guide)
-  - [Table of Contents](#table-of-contents)
-  - [Prerequisites](#prerequisites)
 - [Architecture](#architecture)
 - [Interfaces](#interfaces)
   - [Storage](#storage)
@@ -13,6 +10,7 @@
     - [Currently supported storages](#currently-supported-storages)
   - [Messaging](#messaging)
     - [Interface](#interface-1)
+    - [Pgqueue implementation](#pgqueue-implementation)
     - [Pubsub implementation](#pubsub-implementation)
   - [Database](#database)
     - [Interface](#interface-2)
@@ -24,10 +22,14 @@
     - [Apiserver](#apiserver)
     - [Consolidater](#consolidater)
   - [Messaging Broker](#messaging-broker)
+    - [PGQueue](#pgqueue)
     - [RabbitMq](#rabbitmq)
     - [Pub/Sub (Emulator)](#pubsub-emulator)
 - [Installation - Docker](#installation---docker)
+  - [Base-image](#base-image)
+  - [Server, Consolidater and Downloader](#server-consolidater-and-downloader)
   - [Messaging Broker](#messaging-broker-1)
+  - [Docker-compose](#docker-compose)
 - [Installation - Kubernetes Cluster](#installation---kubernetes-cluster)
   - [IAM & Security](#iam--security)
   - [Container Registry](#container-registry)
@@ -109,11 +111,16 @@ The storage is infered from the prefix of the uri (protocol). The user can add a
 ### Interface
 
 The messaging interface is available here : `interface/messaging/`.
-It is used to communicate between the ApiServer and the Consolidater. It's a parameter of the constructor of the Service and it is configured in the following files: `cmd/apiserver/main.go` and `cmd/consolidater/main.go`.
+It is used to communicate between the ApiServer and the Consolidater, and it can be used as a metric to autoscale the consolidater. It's a parameter of the constructor of the Service and it is configured in the following files: `cmd/apiserver/main.go` and `cmd/consolidater/main.go`.
+
+### Pgqueue implementation
+
+A messaging interface based on postgres is implemented using the [btubbs/pgq](https://github.com/btubbs/pgq) library: `interface/messaging/pgqueue`. This implementation has autoscaling capabilities.
+
 
 ### Pubsub implementation
 
-Geocube supports PubSub (Google Cloud Platform) messaging broker : `vendor/github.com/geocube/interface/messaging/pubsub`.
+Geocube supports PubSub (Google Cloud Platform) messaging broker : `interface/messaging/pubsub`.
 
 Topics and subscriptions are to be created.
 
@@ -200,59 +207,61 @@ Some arguments are required in order to run this file.
 $ ./server --help
 Usage of ./server:
   -aws-endpoint string
-        define aws_endpoint for GDAL to use s3 storage (--with-s3)
+    	define aws_endpoint for GDAL to use s3 storage (--with-s3)
   -aws-region string
-        define aws_region for GDAL to use s3 storage (--with-s3)
+    	define aws_region for GDAL to use s3 storage (--with-s3)
   -aws-shared-credentials-file string
-        define aws_shared_credentials_file for GDAL to use s3 storage (--with-s3)
+    	define aws_shared_credentials_file for GDAL to use s3 storage (--with-s3)
   -baSecretName string
-        name of the secret that stores the bearer authentication (admin & user) (gcp only)
+    	name of the secret that stores the bearer authentication (admin & user) (gcp only)
   -cancelledJobs string
-        storage where cancelled jobs are referenced
+    	storage where cancelled jobs are referenced. Must be reachable by the Consolidation Workers and the Geocube with read/write permissions
+  -consolidationsQueue string
+    	name of the pgqueue or the pubsub topic to send the consolidation orders
   -dbConnection string
-        database connection (ex: postgresql://postgres:1234@localhost:5432/geocube)
+    	database connection (ex: postgresql://user:password@localhost:5432/geocube)
   -dbHost string
-        database host (see dbName)
+    	database host (see dbName)
   -dbName string
-        database name (to connect with User, Host & Password)
+    	database name (to connect with User, Host & Password)
   -dbPassword string
-        database password (see dbName)
+    	database password (see dbName)
   -dbSecretName string
-        name of the secret that stores credentials to connect to the database (gcp only)
+    	name of the secret that stores credentials to connect to the database (gcp only)
   -dbUser string
-        database user (see dbName)
+    	database user (see dbName)
+  -eventsQueue string
+    	name of the pgqueue or the pubsub topic to send the asynchronous job events
   -gdalBlockSize string
-        gdal blocksize value (default 1Mb) (default "1Mb")
+    	gdal blocksize value (default 1Mb) (default "1Mb")
   -gdalNumCachedBlocks int
-        gdal blockcache value (default 500) (default 500)
+    	gdal blockcache value (default 500) (default 500)
   -gdalStorageDebug
-        enable storage debug to use custom gdal storage strategy
+    	enable storage debug to use custom gdal storage strategy
   -ingestionStorage string
-        path to the storage where ingested and consolidated datasets will be stored (local/gs)
-  -local
-        execute geocube in local environment
+    	path to the storage where ingested and consolidated datasets will be stored. Must be reachable with read/write/delete permissions. (local/gs)
   -maxConnectionAge int
-        grpc max age connection
+    	grpc max age connection
+  -pgqConnection string
+    	url of the postgres database to enable pgqueue messaging system (pgqueue only)
   -port string
-        geocube port to use (default "8080")
+    	geocube port to use (default "8080")
   -project string
-        project name (gcp only/not required in local usage)
-  -psConsolidationsTopic string
-        name of the topic to send the consolidation orders (pubsub only)
-  -psEventsTopic string
-        name of the topic to send the consolidation events (pubsub only)
+    	project name (gcp only/not required in local usage)
+  -tls
+    	enable TLS protocol
   -with-gcs
-        configure GDAL to use gcs storage (may need authentication)
+    	configure GDAL to use gcs storage (may need authentication)
   -with-s3
-        configure GDAL to use s3 storage (may need authentication)
+    	configure GDAL to use s3 storage (may need authentication)
   -workers int
-        number of parallel workers per catalog request (default 1)
+    	number of parallel workers per catalog request (default 1)
 ```
 
 Example (run):
 
 ```bash
-$  ./server -ingestionStorage=/geocube-datasets -dbConnection=postgresql://user:password@localhost:5432/geocube -psEventsTopic events -psConsolidationsTopic consolidations -local -cancelledJobs /tmp
+$  ./server -ingestionStorage=/geocube-datasets -dbConnection=postgresql://user:password@localhost:5432/geocube -eventsQueue events -consolidationsQueue consolidations -cancelledJobs /tmp
 {"severity":"info","timestamp":"2021-05-24T15:10:57.621+0200","message":"Geocube v0.3.0"}
 
 ```
@@ -274,44 +283,62 @@ Some arguments are required in order to run this file.
 $ ./consolidater --help
 Usage of ./consolidater:
   -aws-endpoint string
-        define aws_endpoint for GDAL to use s3 storage (--with-s3)
+    	define aws_endpoint for GDAL to use s3 storage (--with-s3)
   -aws-region string
-        define aws_region for GDAL to use s3 storage (--with-s3)
+    	define aws_region for GDAL to use s3 storage (--with-s3)
   -aws-shared-credentials-file string
-        define aws_shared_credentials_file for GDAL to use s3 storage (--with-s3)
+    	define aws_shared_credentials_file for GDAL to use s3 storage (--with-s3)
   -cancelledJobs string
-        storage where cancelled jobs are referenced
+    	storage where cancelled jobs are referenced
+  -consolidationsQueue string
+    	name of the messaging queue for consolidation jobs (pgqueue or pubsub subscription)
+  -eventsQueue string
+    	name of the messaging queue for job events (pgquue or pubsub topic)
   -gdalBlockSize string
-        gdal blocksize value (default 1Mb) (default "1Mb")
+    	gdal blocksize value (default 1Mb) (default "1Mb")
   -gdalNumCachedBlocks int
-        gdal blockcache value (default 500) (default 500)
+    	gdal blockcache value (default 500) (default 500)
   -gdalStorageDebug
-        enable storage debug to use custom gdal storage strategy
+    	enable storage debug to use custom gdal storage strategy
+  -pgqConnection string
+    	url of the postgres database to enable pgqueue messaging system (pgqueue only)
   -psProject string
-        subscription project (gcp pubSub only)
-  -psConsolidationsSubscription string
-        pubsub consolidation subscription name
-  -psEventsTopic string
-        pubsub events topic name
+    	subscription project (gcp pubSub only)
   -retryCount int
-        number of retries when consolidation job failed with a temporary error (default 1)
-  -workers int
-        number of workers for parallel tasks        
+    	number of retries when consolidation job failed with a temporary error (default 1)
   -with-gcs
-        configure GDAL to use gcs storage (may need authentication)
+    	configure GDAL to use gcs storage (may need authentication)
   -with-s3
-        configure GDAL to use s3 storage (may need authentication)
+    	configure GDAL to use s3 storage (may need authentication)
   -workdir string
-        scratch work directory
+    	scratch work directory
+  -workers int
+    	number of workers for parallel tasks (default 1)
 ```
 
 Example (run):
 
 ```bash
-$  ./consolidater -workdir=/tmp -psProject geocube-emulator -psEventsTopic events -psConsolidationsSubscription consolidations -cancelledJobs /tmp
+$  ./consolidater -workdir=/tmp -psProject geocube-emulator -eventsQueue events -consolidationsQueue consolidations -cancelledJobs /tmp
 ```
 
 ## Messaging Broker
+
+### PGQueue
+
+To use this messaging broker, create the `pgq_jobs` table in your postgres database using the following script `interface/messaging/pgqueue/create_table.sql`.
+
+```bash
+$ psql -h <database_host> -d <database_name> -f interface/messaging/pgqueue/create_table.sql
+```
+
+Then, start the apiserver and the consolidater with the corresponding arguments:
+- `--pgqConnection`: connection uri to the postgres database (e.g. `postgresql://user:password@localhost:5432/geocube`)
+- `--consolidationQueue consolidations`
+- `--eventsQueue events`
+And the Autoscaler, with:
+- `--pgq-connection`: connection uri to the postgres database (e.g. `postgresql://user:password@localhost:5432/geocube`)
+- `--queue consolidations`
 
 ### RabbitMq
 
@@ -365,7 +392,8 @@ In order to run geocube with the PubSub emulator, you must define the `PUBSUB_EM
 
 All dockerfile are available in the `docker` folder.
 
-The Dockerfiles of the two services depend on a `base-image`:
+## Base-image
+The Dockerfiles of the other services depend on a `base-image`:
 
 ```bash
 $ docker build -f docker/Dockerfile.base-image -t geocube-base-image .
@@ -373,7 +401,9 @@ $ docker build -f docker/Dockerfile.base-image -t geocube-base-image .
 Successfully built 62eb9e6d2c0e
 ```
 
-Then, the `BASE_IMAGE` must be passed as a parameter in order to build consolidater and server dockerfile:
+## Server, Consolidater and Downloader
+
+Then, the `BASE_IMAGE` must be passed as a parameter in order to build server, consolidater or downloader dockerfile:
 
 ```bash
 $ docker build -f docker/Dockerfile.server -t geocube . --build-arg BASE_IMAGE=geocube-base-image
@@ -383,16 +413,20 @@ $ docker build -f docker/Dockerfile.server -t geocube . --build-arg BASE_IMAGE=g
 $ docker build -f docker/Dockerfile.consolidater -t geocube-consolidater . --build-arg BASE_IMAGE=geocube-base-image
 ```
 
+```bash
+$ docker build -f docker/Dockerfile.downloader -t geocube-downloader . --build-arg BASE_IMAGE=geocube-base-image
+```
+
 You can run “docker run” command in order to start the application.
 
 Examples :
 ```bash
 export STORAGE=/geocube-datasets
-docker run --rm --network=host -e PUBSUB_EMULATOR_HOST=localhost:8085 -v $STORAGE:$STORAGE geocube -project geocube-emulator -ingestionStorage=$STORAGE -dbConnection=postgresql://user:password@localhost:5432/geocube -psEventsTopic events -psConsolidationsTopic consolidations -local -cancelledJobs $STORAGE/cancelled-jobs
+docker run --rm --network=host -e PUBSUB_EMULATOR_HOST=localhost:8085 -v $STORAGE:$STORAGE geocube -project geocube-emulator -ingestionStorage=$STORAGE -dbConnection=postgresql://user:password@localhost:5432/geocube -eventsQueue events -consolidationsQueue consolidations -cancelledJobs $STORAGE/cancelled-jobs
 ```
 ```bash
 export STORAGE=/geocube-datasets
-docker run --rm --network=host -e PUBSUB_EMULATOR_HOST=localhost:8085 -v $STORAGE:$STORAGE geocube-consolidater /consolidater -psProject geocube-emulator -workdir=/tmp -psEventsTopic events -psConsolidationsSubscription consolidations -cancelledJobs $STORAGE/cancelled-jobs
+docker run --rm --network=host -e PUBSUB_EMULATOR_HOST=localhost:8085 -v $STORAGE:$STORAGE geocube-consolidater /consolidater -psProject geocube-emulator -workdir=/tmp -eventsQueue events -consolidationsQueue consolidations -cancelledJobs $STORAGE/cancelled-jobs
 ```
 
 With GCS support (authentication with application_default_credentials.json):
@@ -406,6 +440,16 @@ For more information concerning running option, see: https://docs.docker.com/eng
 ## Messaging Broker
 
 cf [Local environment - Messaging Broker](#messaging-broker)
+
+## Docker-compose
+
+A docker-compose file is provided as example. It's a minimal example, so feel free to edit it to take advantage of the full power of the Geocube.
+
+- Copy the `./docker/.env.example` to `./docker/.env`
+- Edit `./docker/.env` to set the `STORAGE_URI` (it will be mount as a volume to access and store images).
+- Build the [base image](#base-image)
+- `cd docker` and `docker-compose up`
+
 
 # Installation - Kubernetes Cluster
 
@@ -506,8 +550,8 @@ containers:
       - -dbUser=apiserver
       - -dbPassword=mydbPassword
       - -dbHost=localhost:5432
-      - -psEventsTopic=events
-      - -psConsolidationsTopic=consolidations
+      - -eventsQueue=events
+      - -consolidationsQueue=consolidations
       - -ingestionStorage=/geocube-datasets or gs://my-bucket/geocube-datasets
       - -maxConnectionAge=3600
       - -workers=1
@@ -571,7 +615,7 @@ containers:
         UUID=`uuid`;
         WORKDIR=/local-ssd/$UUID;
         mkdir -p $WORKDIR;
-        /consolidater -psEventsTopic events -psConsolidationsSubscription consolidations -workdir $WORKDIR -cancelledJobs=/geocube-cancelled-jobs or gs://my-bucket/geocube-cancelled-jobs || true;
+        /consolidater -eventsQueue events -consolidationsQueue consolidations -workdir $WORKDIR -cancelledJobs=/geocube-cancelled-jobs or gs://my-bucket/geocube-cancelled-jobs || true;
         exitcode=$?;
         rm -rf $WORKDIR;
         exit $exitcode;
@@ -593,7 +637,7 @@ containers:
     imagePullPolicy: Always
     args:
       - -update=30s
-      - -psSubscription=consolidations
+      - -queue=consolidations
       - -rc=consolidater
       - -ns=default
       - -ratio=1
@@ -637,50 +681,51 @@ docker run --rm <image_to_run> <downloader_args>
 ```
 
 Downloader available options:
-```shell
-	Usage of /downloader:
+```bash
+$ ./downloader --help
+Usage of ./downloader:
   -aws-endpoint string
-        define aws_endpoint for GDAL to use s3 storage (--with-s3)
+    	define aws_endpoint for GDAL to use s3 storage (--with-s3)
   -aws-region string
-        define aws_region for GDAL to use s3 storage (--with-s3)
+    	define aws_region for GDAL to use s3 storage (--with-s3)
   -aws-shared-credentials-file string
-        define aws_shared_credentials_file for GDAL to use s3 storage (--with-s3)
+    	define aws_shared_credentials_file for GDAL to use s3 storage (--with-s3)
   -gdalBlockSize string
-        gdal blocksize value (default 1Mb) (default "1Mb")
+    	gdal blocksize value (default 1Mb) (default "1Mb")
   -gdalNumCachedBlocks int
-        gdal blockcache value (default 500) (default 500)
+    	gdal blockcache value (default 500) (default 500)
   -gdalStorageDebug
-        enable storage debug to use custom gdal storage strategy
-  -local
-        execute geocube downloader in local environment
+    	enable storage debug to use custom gdal storage strategy
   -maxConnectionAge int
-        grpc max age connection
+    	grpc max age connection
   -port string
-        geocube downloader port to use (default "8080")
+    	geocube downloader port to use (default "8080")
+  -tls
+    	enable TLS protocol
   -with-gcs
-        configure GDAL to use gcs storage (may need authentication)
+    	configure GDAL to use gcs storage (may need authentication)
   -with-s3
-        configure GDAL to use s3 storage (may need authentication)
+    	configure GDAL to use s3 storage (may need authentication)
   -workers int
-        number of parallel workers per catalog request (default 1)
+    	number of parallel workers per catalog request (default 1)
 ```
 
-Basic local example:
+Basic example:
 
 ```shell
-docker run --rm -p 127.0.0.1:8081:8081/tcp geocube-downloader -local -port 8081 -workers 4
+docker run --rm -p 127.0.0.1:8081:8081/tcp geocube-downloader -port 8081 -workers 4
 ```
 
 Example with GCS support:
 
 With GOOGLE_APPLICATION_CREDENTIALS:
 ```shell
-docker run --rm -e GOOGLE_APPLICATION_CREDENTIALS=/account/geocube_server.json -p 127.0.0.1:8081:8081/tcp --mount type=bind,src=~/Documents/account/geocube,dst=/account 65cddc550e9a geocube-downloader -local -port 8081 -with-gcs -workers 4 -gdalBlockSize 2Mb
+docker run --rm -e GOOGLE_APPLICATION_CREDENTIALS=/account/geocube_server.json -p 127.0.0.1:8081:8081/tcp --mount type=bind,src=~/Documents/account/geocube,dst=/account 65cddc550e9a geocube-downloader -port 8081 -with-gcs -workers 4 -gdalBlockSize 2Mb
 ```
 
 With application_default_credentials.json:
 ```bash
-docker run --rm -v ~/.config/gcloud:/root/.config/gcloud -p 127.0.0.1:8081:8081/tcp geocube-downloader -local -port 8081 -with-gcs -workers 4 -gdalBlockSize 2Mb
+docker run --rm -v ~/.config/gcloud:/root/.config/gcloud -p 127.0.0.1:8081:8081/tcp geocube-downloader -port 8081 -with-gcs -workers 4 -gdalBlockSize 2Mb
 ```
 
 Storage Debug (GCP only):
