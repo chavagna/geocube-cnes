@@ -2,12 +2,8 @@ package pubsub
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
-	"sync"
 	"time"
 
 	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
@@ -28,7 +24,6 @@ import (
 type Client struct {
 	ps                        *gcppubsub.SubscriberClient
 	m                         *monitoring.MetricClient
-	psOnce, mOnce             sync.Once
 	projectID, subscriptionID string
 	processOpts               processOptions
 }
@@ -43,35 +38,6 @@ type ConsumerOption func(o *consumerOptions)
 // Pull implements Messaging.Consumer
 func (c *Client) Pull(ctx context.Context, cb messaging.Callback) error {
 	return c.Process(ctx, cb)
-}
-
-// Consume implements Messaging.Consumer
-func (c *Client) Consume(req http.Request, cb messaging.Callback) (int, error) {
-	ctx := req.Context()
-	if req.Method != "POST" {
-		return http.StatusMethodNotAllowed, nil
-	}
-
-	psm := struct {
-		Message struct {
-			Data string `json:"data"`
-		} `json:"message"`
-	}{}
-
-	err := json.NewDecoder(req.Body).Decode(&psm)
-	if err != nil {
-		return 400, err
-	}
-
-	data, err := base64.StdEncoding.DecodeString(psm.Message.Data)
-	if err != nil {
-		return 400, err
-	}
-
-	if err := cb(ctx, &messaging.Message{Data: data, PublishTime: time.Now()}); err != nil {
-		return 503, err
-	}
-	return 200, nil
 }
 
 func DefaultSubscriberClient(ctx context.Context) (*gcppubsub.SubscriberClient, error) {
@@ -181,17 +147,11 @@ func (c *Client) SetProcessOption(opts ...ProcessOption) {
 }
 
 func (c *Client) Process(ctx context.Context, cb messaging.Callback) error {
-	var initerr error
-	c.psOnce.Do(func() {
-		if c.ps == nil {
-			c.ps, initerr = DefaultSubscriberClient(context.Background())
-			if initerr != nil {
-				initerr = fmt.Errorf("create subscriber client: %w", initerr)
-			}
+	if c.ps == nil {
+		var err error
+		if c.ps, err = DefaultSubscriberClient(context.Background()); err != nil {
+			return fmt.Errorf("create subscriber client: %w", err)
 		}
-	})
-	if initerr != nil {
-		return initerr
 	}
 
 	sub := fmt.Sprintf("projects/%s/subscriptions/%s", c.projectID, c.subscriptionID)
@@ -322,17 +282,11 @@ func (c *Client) Process(ctx context.Context, cb messaging.Callback) error {
 
 // Backlog implements interface.autoscaler.qbas.Queue
 func (c *Client) Backlog(ctx context.Context) (int64, error) {
-	var initerr error
-	c.mOnce.Do(func() {
-		if c.m == nil {
-			c.m, initerr = monitoring.NewMetricClient(context.Background())
-			if initerr != nil {
-				initerr = fmt.Errorf("create metric client: %w", initerr)
-			}
+	if c.m == nil {
+		var err error
+		if c.m, err = monitoring.NewMetricClient(context.Background()); err != nil {
+			return 0, fmt.Errorf("create metric client: %w", err)
 		}
-	})
-	if initerr != nil {
-		return 0, initerr
 	}
 	req := &monitoringpb.ListTimeSeriesRequest{
 		Name: fmt.Sprintf("projects/%s", c.projectID),

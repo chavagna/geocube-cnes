@@ -19,7 +19,7 @@ spec:
           imagePullPolicy: IfNotPresent
           args:
             - -update=30s
-            - -psSubscription=consolidations-worker
+            - -queue=consolidations-worker
             - -rc=consolidater
             - -ns=default
             - -ratio=1

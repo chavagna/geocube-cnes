@@ -19,12 +19,12 @@ spec:
         - args:
             - -dbConnection=postgresql://postgres:1234@10.20.0.95:5432/db-geocube
             - -local
-            - -psEventsTopic=events
-            - -psConsolidationsTopic=consolidations
-            - -ingestionStorage=/geocube-datasets
+            - -ingestionStorage=/tmp/inputs
+            - -eventsQueue=events
+            - -consolidationsQueue=consolidations
             - -maxConnectionAge=3600
             - -workers=1
-            - -cancelledJobs=/geocube-cancelled-jobs
+            - -cancelledJobs=/work/OT/ai4geo/cnes/geocube/cancelled-jobs
           env:
             - name: PUBSUB_EMULATOR_HOST
               value: 0.0.0.0:8085
@@ -35,13 +35,16 @@ spec:
             - containerPort: 8080
               protocol: TCP
           volumeMounts:
-          - mountPath: /tmp
+          - mountPath: /work/OT/ai4geo/cnes/geocube/geocube-client-python/Jupyter/inputs
             name: local-storage
           resources: {}
       terminationGracePeriodSeconds: 120
       volumes:
         - name: local-storage
           emptyDir: {}
+        - name: inputs-container
+          hostPath:
+            path: /tmp/inputs                  
       restartPolicy: Always
       schedulerName: default-scheduler
       securityContext: {}
