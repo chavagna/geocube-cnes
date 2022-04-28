@@ -31,20 +31,21 @@ spec:
           image: geocube-server:latest
           imagePullPolicy: IfNotPresent
           name: apiserver
+          securityContext:
+            runAsGroup: 9564
           ports:
             - containerPort: 8080
               protocol: TCP
           volumeMounts:
-          - mountPath: /work/OT/ai4geo/cnes/geocube/geocube-client-python/Jupyter/inputs
-            name: local-storage
+          - mountPath: /work
+            name: nfs-vol
           resources: {}
       terminationGracePeriodSeconds: 120
       volumes:
-        - name: local-storage
-          emptyDir: {}
-        - name: inputs-container
-          hostPath:
-            path: /tmp/inputs                  
+        - name: nfs-vol
+          nfs:
+            server: 10.120.42.63
+            path: /work/               
       restartPolicy: Always
       schedulerName: default-scheduler
       securityContext: {}
