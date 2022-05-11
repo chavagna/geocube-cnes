@@ -33,8 +33,16 @@ spec:
           ports:
             - containerPort: 8080
               protocol: TCP
+          volumeMounts:
+          - mountPath: /work
+            name: nfs-vol
           resources: {}
-      terminationGracePeriodSeconds: 120              
+      terminationGracePeriodSeconds: 120
+      volumes:
+        - name: nfs-vol
+          nfs:
+            server: 10.120.42.63
+            path: /work/              
       restartPolicy: Always
       schedulerName: default-scheduler
       securityContext: {}
