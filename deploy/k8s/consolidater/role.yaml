@@ -7,5 +7,4 @@ rules:
     verbs: ['get', 'list','delete','create']
     resources:
       - pods
-    resources:
       - replicationcontrollers
