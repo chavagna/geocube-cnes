@@ -31,9 +31,6 @@ spec:
           ports:
             - containerPort: 9000
               protocol: TCP
-          env:
-            - name: PUBSUB_EMULATOR_HOST
-              value: 0.0.0.0:8085
           resources:
             requests:
               cpu: 1900m
@@ -46,7 +43,7 @@ spec:
               UUID=`uuid`;
               WORKDIR=/local-ssd/$UUID;
               mkdir -p $WORKDIR;
-              /consolidater -eventsQueue events -consolidationsQueue consolidations -workdir $WORKDIR -cancelledJobs=/geocube-cancelled-jobs || true;
+              /consolidater -eventsQueue events -consolidationsQueue consolidations -pgqConnection=postgresql://postgres:1234@10.20.0.95:5432/db-geocube -workdir $WORKDIR -cancelledJobs=/geocube-cancelled-jobs || true;
               exitcode=$?;
               rm -rf $WORKDIR;
               exit $exitcode;
